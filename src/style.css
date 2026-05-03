@@ -9,8 +9,8 @@ html, body {
   height: 100%;
   overflow: hidden;
   font-family: 'Segoe UI', 'Microsoft YaHei', system-ui, sans-serif;
-  background: #1a1a2e;
-  color: #e0e0e0;
+  background: #f0f4f8;
+  color: #2c3e50;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

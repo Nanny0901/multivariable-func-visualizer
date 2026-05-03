@@ -43,10 +43,7 @@ const buildSurface = (funcExpr) => {
       const y = -range + j * step
       const z = fn(x, y)
       vertices.push(x, isNaN(z) ? 0 : z, y)
-      const hue = isNaN(z) ? 0 : 0.6 - 0.3 * (z / range)
-      const color = new THREE.Color()
-      color.setHSL(Math.max(0, Math.min(1, hue)), 0.8, 0.5)
-      colors.push(color.r, color.g, color.b)
+      colors.push(0.5, 0.5, 0.5)
     }
   }
 
@@ -69,10 +66,11 @@ const buildSurface = (funcExpr) => {
 
   const material = new THREE.MeshPhongMaterial({
     side: THREE.DoubleSide,
-    vertexColors: true,
+    color: 0x5b9bd5,
     transparent: true,
-    opacity: 0.85,
-    shininess: 30,
+    opacity: 0.5,
+    shininess: 80,
+    specular: 0x444444,
   })
 
   return new THREE.Mesh(geometry, material)
@@ -96,7 +94,7 @@ const initScene = () => {
   if (!container) return
 
   scene = new THREE.Scene()
-  scene.background = new THREE.Color(0x1a1a2e)
+  scene.background = new THREE.Color(0xf5f5f5)
 
   const width = container.clientWidth
   const height = container.clientHeight
@@ -115,18 +113,33 @@ const initScene = () => {
   controls.dampingFactor = 0.08
 
   // 光照
-  const ambientLight = new THREE.AmbientLight(0x404060, 1.5)
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.7)
   scene.add(ambientLight)
   const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2)
   directionalLight.position.set(5, 10, 5)
   scene.add(directionalLight)
-  const backLight = new THREE.DirectionalLight(0x4444ff, 0.5)
-  backLight.position.set(-5, -2, -5)
-  scene.add(backLight)
-
   // 网格地面
-  const gridHelper = new THREE.GridHelper(10, 20, 0x333355, 0x222244)
+  const gridHelper = new THREE.GridHelper(10, 20, 0xcccccc, 0xe0e0e0)
   scene.add(gridHelper)
+
+  // xOz 平面（数学 y=0）和 yOz 平面（数学 x=0）
+  const createPlane = (color, opacity) => {
+    const geom = new THREE.PlaneGeometry(10, 10)
+    const mat = new THREE.MeshBasicMaterial({
+      color,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity,
+      depthWrite: false,
+    })
+    return new THREE.Mesh(geom, mat)
+  }
+  const xozPlane = createPlane(0x5b9bd5, 0.06)
+  scene.add(xozPlane)
+
+  const yozPlane = createPlane(0x52c41a, 0.06)
+  yozPlane.rotation.y = Math.PI / 2
+  scene.add(yozPlane)
 
   // 坐标轴
   createAxes()

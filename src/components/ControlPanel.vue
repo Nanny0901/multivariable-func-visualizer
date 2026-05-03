@@ -140,7 +140,7 @@ const pointOnSurface = computed(() => {
     
     <!-- 函数输入 -->
     <div class="section">
-      <label class="section-label">📝 函数表达式 f(x, y, z) =</label>
+      <label class="section-label">📝 函数表达式 z(x, y) =</label>
       <div class="func-input-row">
         <input
           v-model="localFunc"
@@ -249,22 +249,25 @@ const pointOnSurface = computed(() => {
 .control-panel {
   width: 340px;
   height: 100%;
-  background: #16213e;
-  border-left: 2px solid #0f3460;
+  background: #f8fafc;
+  border-left: 1px solid #d0d8e0;
   padding: 20px 16px;
   overflow-y: auto;
-  color: #e0e0e0;
+  color: #2c3e50;
   font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
   box-sizing: border-box;
+  box-shadow: -2px 0 12px rgba(0, 0, 0, 0.06);
 }
 
 .panel-title {
   font-size: 18px;
   font-weight: 700;
   margin: 0 0 18px 0;
+  padding-bottom: 14px;
   text-align: center;
   color: #e94560;
   letter-spacing: 1px;
+  border-bottom: 2px solid #e2e8f0;
 }
 
 .section {
@@ -275,7 +278,7 @@ const pointOnSurface = computed(() => {
   display: block;
   font-weight: 600;
   margin-bottom: 8px;
-  color: #a2d2ff;
+  color: #4a5568;
   font-size: 14px;
 }
 
@@ -287,17 +290,18 @@ const pointOnSurface = computed(() => {
 .func-input {
   flex: 1;
   padding: 10px 12px;
-  border: 1px solid #0f3460;
+  border: 1px solid #cbd5e0;
   border-radius: 6px;
-  background: #1a1a2e;
-  color: #e0e0e0;
+  background: #ffffff;
+  color: #2c3e50;
   font-size: 15px;
   font-family: 'Consolas', 'Courier New', monospace;
   outline: none;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 .func-input:focus {
   border-color: #e94560;
+  box-shadow: 0 0 0 3px rgba(233, 69, 96, 0.1);
 }
 
 .symbol-buttons {
@@ -309,29 +313,29 @@ const pointOnSurface = computed(() => {
 
 .sym-btn {
   padding: 4px 8px;
-  border: 1px solid #0f3460;
+  border: 1px solid #cbd5e0;
   border-radius: 4px;
-  background: #1a1a2e;
-  color: #a2d2ff;
+  background: #edf2f7;
+  color: #4a5568;
   cursor: pointer;
   font-size: 12px;
   font-family: 'Consolas', monospace;
   transition: all 0.15s;
 }
 .sym-btn:hover {
-  background: #0f3460;
+  background: #e94560;
   color: #fff;
   border-color: #e94560;
 }
 
 .func-hint {
   font-size: 11px;
-  color: #777;
+  color: #94a3b8;
   margin-top: 6px;
   line-height: 1.5;
 }
 .hint-dim {
-  color: #555;
+  color: #a0aec0;
 }
 
 .coord-row {
@@ -348,31 +352,32 @@ const pointOnSurface = computed(() => {
 
 .coord-label {
   font-size: 12px;
-  color: #888;
+  color: #718096;
   font-family: 'Consolas', monospace;
 }
 
 .coord-input {
   padding: 8px 10px;
-  border: 1px solid #0f3460;
+  border: 1px solid #cbd5e0;
   border-radius: 6px;
-  background: #1a1a2e;
-  color: #e0e0e0;
+  background: #ffffff;
+  color: #2c3e50;
   font-size: 14px;
   font-family: 'Consolas', monospace;
   outline: none;
   width: 100%;
   box-sizing: border-box;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 .coord-input:focus {
   border-color: #e94560;
+  box-shadow: 0 0 0 3px rgba(233, 69, 96, 0.1);
 }
 
 .info-row {
   margin-top: 6px;
   font-size: 13px;
-  color: #888;
+  color: #718096;
 }
 
 .result-section {
@@ -380,23 +385,24 @@ const pointOnSurface = computed(() => {
 }
 
 .result-card {
-  background: #1a1a2e;
-  border: 1px solid #0f3460;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
   border-radius: 8px;
   padding: 12px 14px;
   margin-bottom: 10px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 .result-label {
   font-size: 12px;
-  color: #888;
+  color: #718096;
   margin-bottom: 4px;
 }
 
 .result-value {
   font-size: 16px;
   font-weight: 600;
-  color: #e0e0e0;
+  color: #2c3e50;
   font-family: 'Consolas', monospace;
   word-break: break-all;
 }
@@ -409,9 +415,9 @@ const pointOnSurface = computed(() => {
 .legend {
   margin-top: 12px;
   padding: 10px;
-  background: #1a1a2e;
+  background: #ffffff;
   border-radius: 6px;
-  border: 1px solid #0f3460;
+  border: 1px solid #e2e8f0;
 }
 
 .legend-item {
@@ -419,7 +425,7 @@ const pointOnSurface = computed(() => {
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  color: #aaa;
+  color: #4a5568;
   margin-bottom: 4px;
 }
 
@@ -435,10 +441,10 @@ const pointOnSurface = computed(() => {
   width: 6px;
 }
 .control-panel::-webkit-scrollbar-track {
-  background: #1a1a2e;
+  background: #f1f5f9;
 }
 .control-panel::-webkit-scrollbar-thumb {
-  background: #0f3460;
+  background: #cbd5e0;
   border-radius: 3px;
 }
 </style>
