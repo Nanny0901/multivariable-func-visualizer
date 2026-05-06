@@ -1,0 +1,60 @@
+export const functionPresets = [
+  {
+    name: '抛物面',
+    expression: 'x^2 + y^2',
+    point: { x: 1, y: 1 },
+    vector: { x: 1, y: 0 },
+    reason: '最适合验证梯度与方向导数的基础例子。',
+  },
+  {
+    name: '马鞍面',
+    expression: 'x^2 - y^2',
+    point: { x: 1, y: 0.5 },
+    vector: { x: 1, y: 1 },
+    reason: '能直观看到不同方向斜率一正一负。',
+  },
+  {
+    name: '波纹面',
+    expression: 'sin(x) * cos(y)',
+    point: { x: 0.8, y: 0.6 },
+    vector: { x: 1, y: 1 },
+    reason: '展示三角函数曲面的周期起伏。',
+  },
+  {
+    name: '指数丘陵',
+    expression: 'exp(-(x^2 + y^2) / 4)',
+    point: { x: 1, y: 0 },
+    vector: { x: -1, y: 0 },
+    reason: '从坡面向峰顶移动时方向导数为正。',
+  },
+  {
+    name: '对数山谷',
+    expression: 'log(x^2 + y^2 + 1)',
+    point: { x: 1.5, y: 1 },
+    vector: { x: 1, y: 0 },
+    reason: '定义域稳定，适合观察缓慢增长曲面。',
+  },
+  {
+    name: '径向距离',
+    expression: 'sqrt(x^2 + y^2)',
+    point: { x: 2, y: 1 },
+    vector: { x: -1, y: -1 },
+    reason: '几何意义清晰，可解释沿径向下降。',
+  },
+]
+
+export const symbolButtons = [
+  { label: 'sin', insert: 'sin()' },
+  { label: 'cos', insert: 'cos()' },
+  { label: 'tan', insert: 'tan()' },
+  { label: 'exp', insert: 'exp()' },
+  { label: 'log', insert: 'log()' },
+  { label: 'sqrt', insert: 'sqrt()' },
+  { label: 'abs', insert: 'abs()' },
+  { label: 'π', insert: 'pi' },
+  { label: 'e', insert: 'e' },
+  { label: 'x', insert: 'x' },
+  { label: 'y', insert: 'y' },
+  { label: '^', insert: '^' },
+  { label: '()', insert: '()' },
+]

@@ -1,450 +1,450 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
-import { evaluate, derivative } from 'mathjs'
+import { computed, ref, watch } from 'vue'
+import { symbolButtons } from '../data/presets'
+import {
+  formatNumber,
+  vectorAngleDegrees,
+  vectorFromAngleDegrees,
+} from '../utils/mathModel'
 
 const props = defineProps({
+  analysis: { type: Object, required: true },
   funcExpression: { type: String, default: 'x^2 + y^2' },
-  point: { type: Object, default: () => ({ x: 1, y: 1, z: 2 }) },
-  vector: { type: Object, default: () => ({ x: 1, y: 0, z: 0 }) },
+  point: { type: Object, default: () => ({ x: 1, y: 1 }) },
+  vector: { type: Object, default: () => ({ x: 1, y: 0 }) },
+  presets: { type: Array, default: () => [] },
+  viewSettings: { type: Object, required: true },
+  viewOptions: { type: Object, required: true },
+  theme: { type: String, default: 'light' },
+  presentationMode: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['update:funcExpression', 'update:point', 'update:vector'])
+const emit = defineEmits([
+  'apply-preset',
+  'close-drawer',
+  'request-view',
+  'toggle-presentation',
+  'toggle-theme',
+  'update:func-expression',
+  'update:point',
+  'update:vector',
+  'update:view-options',
+  'update:view-settings',
+])
 
-const localFunc = ref(props.funcExpression)
+const localExpression = ref(props.funcExpression)
 const localPoint = ref({ ...props.point })
 const localVector = ref({ ...props.vector })
+const angle = ref(vectorAngleDegrees(props.vector))
+const activeSection = ref('function')
 
-watch(() => props.funcExpression, (v) => { localFunc.value = v })
-watch(() => props.point, (v) => { localPoint.value = { ...v } }, { deep: true })
-watch(() => props.vector, (v) => { localVector.value = { ...v } }, { deep: true })
-
-// 数学符号按钮
-const mathSymbols = [
-  { label: 'sin()', insert: 'sin()' },
-  { label: 'cos()', insert: 'cos()' },
-  { label: 'tan()', insert: 'tan()' },
-  { label: 'exp()', insert: 'exp()' },
-  { label: 'log()', insert: 'log()' },
-  { label: 'sqrt()', insert: 'sqrt()' },
-  { label: 'abs()', insert: 'abs()' },
-  { label: 'pi', insert: 'pi' },
-  { label: 'e', insert: 'e' },
-  { label: '^', insert: '^' },
-  { label: 'x', insert: 'x' },
-  { label: 'y', insert: 'y' },
-  { label: 'z', insert: 'z' },
+const sections = [
+  { id: 'function', label: '函数', icon: 'ƒ' },
+  { id: 'geometry', label: '几何', icon: '⌖' },
+  { id: 'result', label: '结果', icon: '∇' },
+  { id: 'view', label: '视图', icon: '◱' },
 ]
 
+watch(
+  () => props.funcExpression,
+  (value) => {
+    localExpression.value = value
+  },
+)
+
+watch(
+  () => props.point,
+  (value) => {
+    localPoint.value = { ...value }
+  },
+  { deep: true },
+)
+
+watch(
+  () => props.vector,
+  (value) => {
+    localVector.value = { ...value }
+    angle.value = vectorAngleDegrees(value)
+  },
+  { deep: true },
+)
+
+const expressionStatus = computed(() =>
+  props.analysis.model?.ok
+    ? {
+        type: 'ok',
+        text: `已解析为 z = ${props.analysis.model.expression}`,
+      }
+    : {
+        type: 'error',
+        text: props.analysis.model?.error ?? props.analysis.error ?? '表达式无法解析',
+      },
+)
+
+const pointLabel = computed(() => {
+  const point = props.analysis.point
+  return `(${formatNumber(point?.x)}, ${formatNumber(point?.y)}, ${formatNumber(point?.z)})`
+})
+
+const gradientLabel = computed(() => {
+  const gradient = props.analysis.gradient
+  if (!gradient) return '(—, —)'
+  return `(${formatNumber(gradient.x)}, ${formatNumber(gradient.y)})`
+})
+
+const unitVectorLabel = computed(() => {
+  const unit = props.analysis.vector?.unit
+  if (!props.analysis.vector?.valid) return '(—, —)'
+  return `(${formatNumber(unit.x)}, ${formatNumber(unit.y)})`
+})
+
+const derivativeLabel = computed(() =>
+  props.analysis.ok ? formatNumber(props.analysis.directionalDerivative, 6) : '—',
+)
+
+const derivativeFormula = computed(() =>
+  props.analysis.ok
+    ? `Dᵤf = ∇f · u = ${props.analysis.derivativeFormula} = ${derivativeLabel.value}`
+    : props.analysis.error,
+)
+
+const vectorLengthLabel = computed(() => formatNumber(props.analysis.vector?.length ?? NaN))
+
 const insertSymbol = (symbol) => {
-  localFunc.value += symbol
-  emit('update:funcExpression', localFunc.value)
+  localExpression.value = `${localExpression.value}${symbol}`
+  emit('update:func-expression', localExpression.value)
 }
 
-const onFuncChange = () => {
-  emit('update:funcExpression', localFunc.value)
+const clearExpression = () => {
+  localExpression.value = ''
+  emit('update:func-expression', '')
 }
 
-const onPointChange = () => {
-  emit('update:point', { ...localPoint.value })
+const updateExpression = () => {
+  emit('update:func-expression', localExpression.value)
 }
 
-const onVectorChange = () => {
-  emit('update:vector', { ...localVector.value })
+const updatePoint = () => {
+  emit('update:point', {
+    x: Number(localPoint.value.x),
+    y: Number(localPoint.value.y),
+  })
 }
 
-// 计算方向导数
-const directionalDerivative = computed(() => {
-  try {
-    const { x, y, z } = localPoint.value
-    const { x: vx, y: vy, z: vz } = localVector.value
-    
-    const vLen = Math.sqrt(vx * vx + vy * vy + vz * vz)
-    if (vLen < 1e-10) return '向量长度为零'
+const updateVector = () => {
+  emit('update:vector', {
+    x: Number(localVector.value.x),
+    y: Number(localVector.value.y),
+  })
+}
 
-    const ux = vx / vLen
-    const uy = vy / vLen
-    const uz = vz / vLen
+const updateAngle = () => {
+  const vector = vectorFromAngleDegrees(angle.value)
+  localVector.value = vector
+  emit('update:vector', vector)
+}
 
-    // 计算偏导数 ∂f/∂x, ∂f/∂y, ∂f/∂z
-    const expr = localFunc.value || '0'
-    const dfdx = derivative(expr, 'x')
-    const dfdy = derivative(expr, 'y')
-    const dfdz = derivative(expr, 'z')
+const updateViewSetting = (key, value) => {
+  emit('update:view-settings', {
+    ...props.viewSettings,
+    [key]: Number(value),
+  })
+}
 
-    const fx = evaluate(dfdx.toString(), { x, y, z })
-    const fy = evaluate(dfdy.toString(), { x, y, z })
-    const fz = evaluate(dfdz.toString(), { x, y, z })
+const updateViewOption = (key, value) => {
+  emit('update:view-options', {
+    ...props.viewOptions,
+    [key]: value,
+  })
+}
 
-    const result = fx * ux + fy * uy + fz * uz
-    
-    if (isNaN(result) || !isFinite(result)) return '无法计算（该点可能不在定义域内）'
+const resetVector = () => {
+  angle.value = 0
+  localVector.value = { x: 1, y: 0 }
+  emit('update:vector', localVector.value)
+}
 
-    return result.toFixed(6)
-  } catch (e) {
-    return `计算错误: ${e.message}`
-  }
-})
-
-// 函数在当前点的值
-const functionValue = computed(() => {
-  try {
-    const { x, y, z } = localPoint.value
-    const val = evaluate(localFunc.value || '0', { x, y, z })
-    if (isNaN(val) || !isFinite(val)) return '无定义'
-    return val.toFixed(6)
-  } catch {
-    return '无法计算'
-  }
-})
-
-// 梯度
-const gradientInfo = computed(() => {
-  try {
-    const { x, y, z } = localPoint.value
-    const expr = localFunc.value || '0'
-    const dfdx = derivative(expr, 'x')
-    const dfdy = derivative(expr, 'y')
-    const dfdz = derivative(expr, 'z')
-    const fx = evaluate(dfdx.toString(), { x, y, z })
-    const fy = evaluate(dfdy.toString(), { x, y, z })
-    const fz = evaluate(dfdz.toString(), { x, y, z })
-    return { x: fx.toFixed(6), y: fy.toFixed(6), z: fz.toFixed(6) }
-  } catch {
-    return null
-  }
-})
-
-// 检查点是否在函数曲面上（对于 z=f(x,y) 的情况）
-const pointOnSurface = computed(() => {
-  try {
-    const { x, y, z } = localPoint.value
-    // 检查是否有显式的 z 变量使用
-    const expr = localFunc.value || '0'
-    const hasZ = expr.includes('z')
-    if (hasZ) {
-      // 对于包含 z 的隐式函数 f(x,y,z)，检查 f(x,y,z) 是否接近0
-      const val = evaluate(expr, { x, y, z })
-      return Math.abs(val) < 0.01
-    }
-    // 对于 z=f(x,y)，无法简单验证，始终显示在曲面上
-    return true
-  } catch {
-    return false
-  }
-})
+const applyPreset = (preset) => {
+  emit('apply-preset', preset)
+}
 </script>
 
 <template>
-  <div class="control-panel">
-    <h2 class="panel-title">📐 方向导数与梯度</h2>
-    
-    <!-- 函数输入 -->
-    <div class="section">
-      <label class="section-label">📝 函数表达式 z(x, y) =</label>
-      <div class="func-input-row">
-        <input
-          v-model="localFunc"
-          class="func-input"
-          placeholder="例如: x^2 + y^2"
-          @input="onFuncChange"
-        />
+  <aside class="control-panel" aria-label="控制面板">
+    <header class="panel-brand">
+      <button class="mobile-close" type="button" aria-label="关闭菜单" @click="$emit('close-drawer')">
+        ×
+      </button>
+      <div class="brand-mark">∇</div>
+      <div>
+        <p>Math Analysis Studio</p>
+        <h1>方向导数 Lab</h1>
       </div>
-      <div class="symbol-buttons">
-        <button
-          v-for="sym in mathSymbols"
-          :key="sym.label"
-          class="sym-btn"
-          @click="insertSymbol(sym.insert)"
-        >
-          {{ sym.label }}
-        </button>
-      </div>
-      <div class="func-hint">
-        💡 支持: + - * / ^ ( ) 及上方函数<br/>
-        <span v-if="!localFunc.includes('z')" class="hint-dim">
-          当前为显函数 z = {{ localFunc || '...' }}（三维曲面）
-        </span>
-        <span v-else class="hint-dim">
-          当前为隐函数 f(x,y,z) = 0（等值面）
-        </span>
-      </div>
+    </header>
+
+    <nav class="section-nav" aria-label="控制分区">
+      <button
+        v-for="section in sections"
+        :key="section.id"
+        type="button"
+        :class="{ active: activeSection === section.id }"
+        @click="activeSection = section.id"
+      >
+        <span>{{ section.icon }}</span>
+        {{ section.label }}
+      </button>
+    </nav>
+
+    <div class="panel-scroll">
+      <section v-show="activeSection === 'function'" class="panel-section expression-card">
+        <div class="section-title">
+          <span>01</span>
+          <div>
+            <h2>函数输入</h2>
+            <p>显式曲面模型：z = f(x,y)</p>
+          </div>
+        </div>
+
+        <label class="expression-editor" for="func-input">
+          <span>z =</span>
+          <textarea
+            id="func-input"
+            v-model="localExpression"
+            rows="3"
+            spellcheck="false"
+            placeholder="例如 x^2 + y^2"
+            @input="updateExpression"
+          />
+          <button type="button" aria-label="清空函数" @click.prevent="clearExpression">清空</button>
+        </label>
+
+        <p class="status-line" :class="expressionStatus.type">
+          <span>{{ expressionStatus.type === 'ok' ? '✓' : '!' }}</span>
+          {{ expressionStatus.text }}
+        </p>
+
+        <div class="symbol-grid" aria-label="数学符号">
+          <button
+            v-for="symbol in symbolButtons"
+            :key="symbol.label"
+            class="chip"
+            type="button"
+            @click="insertSymbol(symbol.insert)"
+          >
+            {{ symbol.label }}
+          </button>
+        </div>
+
+        <div class="preset-list">
+          <button
+            v-for="preset in presets"
+            :key="preset.name"
+            class="preset-row"
+            type="button"
+            @click="applyPreset(preset)"
+          >
+            <span>
+              <strong>{{ preset.name }}</strong>
+              <small>{{ preset.reason }}</small>
+            </span>
+            <code>{{ preset.expression }}</code>
+          </button>
+        </div>
+      </section>
+
+      <section v-show="activeSection === 'geometry'" class="panel-section">
+        <div class="section-title">
+          <span>02</span>
+          <div>
+            <h2>点与方向</h2>
+            <p>输入平面坐标，z₀ 自动吸附到曲面</p>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label>
+            <span>x₀</span>
+            <input v-model.number="localPoint.x" type="number" step="any" @input="updatePoint" />
+          </label>
+          <label>
+            <span>y₀</span>
+            <input v-model.number="localPoint.y" type="number" step="any" @input="updatePoint" />
+          </label>
+        </div>
+
+        <article class="tonal-card">
+          <span>当前曲面点</span>
+          <strong>P₀ = {{ pointLabel }}</strong>
+        </article>
+
+        <div class="field-group">
+          <label>
+            <span>vₓ</span>
+            <input v-model.number="localVector.x" type="number" step="any" @input="updateVector" />
+          </label>
+          <label>
+            <span>vᵧ</span>
+            <input v-model.number="localVector.y" type="number" step="any" @input="updateVector" />
+          </label>
+        </div>
+
+        <label class="slider-field">
+          <span>方向角 θ = {{ Math.round(angle) }}°</span>
+          <input v-model.number="angle" type="range" min="0" max="360" step="1" @input="updateAngle" />
+        </label>
+
+        <div class="vector-facts">
+          <span>|v| = {{ vectorLengthLabel }}</span>
+          <span>u = {{ unitVectorLabel }}</span>
+          <button type="button" @click="resetVector">重置</button>
+        </div>
+      </section>
+
+      <section v-show="activeSection === 'result'" class="panel-section">
+        <div class="section-title">
+          <span>03</span>
+          <div>
+            <h2>结果解释</h2>
+            <p>方向导数衡量沿单位方向 u 的瞬时变化率</p>
+          </div>
+        </div>
+
+        <article class="result-card" :class="{ error: !analysis.ok }">
+          <span>方向导数</span>
+          <strong>{{ derivativeLabel }}</strong>
+          <p>{{ derivativeFormula }}</p>
+        </article>
+
+        <div class="metric-grid">
+          <article>
+            <span>梯度 ∇f(P₀)</span>
+            <strong>{{ gradientLabel }}</strong>
+          </article>
+          <article>
+            <span>单位方向 u</span>
+            <strong>{{ unitVectorLabel }}</strong>
+          </article>
+          <article>
+            <span>偏导公式</span>
+            <strong>fₓ={{ analysis.model?.derivativeText?.x }}；fᵧ={{ analysis.model?.derivativeText?.y }}</strong>
+          </article>
+        </div>
+      </section>
+
+      <section v-show="activeSection === 'view'" class="panel-section">
+        <div class="section-title">
+          <span>04</span>
+          <div>
+            <h2>图像视图</h2>
+            <p>降低干扰，让曲面、方向和梯度更容易看清</p>
+          </div>
+        </div>
+
+        <div class="view-preset-grid">
+          <button type="button" @click="$emit('request-view', 'iso')">三维视图</button>
+          <button type="button" @click="$emit('request-view', 'top')">俯视图</button>
+          <button type="button" @click="$emit('request-view', 'front')">正视图</button>
+          <button type="button" @click="$emit('request-view', 'side')">侧视图</button>
+        </div>
+
+        <div class="switch-list">
+          <label>
+            <span>坐标网格</span>
+            <input
+              :checked="viewOptions.showGrid"
+              type="checkbox"
+              @change="updateViewOption('showGrid', $event.target.checked)"
+            />
+          </label>
+          <label>
+            <span>曲面网格线</span>
+            <input
+              :checked="viewOptions.showWireframe"
+              type="checkbox"
+              @change="updateViewOption('showWireframe', $event.target.checked)"
+            />
+          </label>
+          <label>
+            <span>切平面</span>
+            <input
+              :checked="viewOptions.showTangentPlane"
+              type="checkbox"
+              @change="updateViewOption('showTangentPlane', $event.target.checked)"
+            />
+          </label>
+          <label>
+            <span>梯度箭头</span>
+            <input
+              :checked="viewOptions.showGradient"
+              type="checkbox"
+              @change="updateViewOption('showGradient', $event.target.checked)"
+            />
+          </label>
+          <label>
+            <span>方向截线</span>
+            <input
+              :checked="viewOptions.showDirectionCurve"
+              type="checkbox"
+              @change="updateViewOption('showDirectionCurve', $event.target.checked)"
+            />
+          </label>
+          <label>
+            <span>坐标标签</span>
+            <input
+              :checked="viewOptions.showAxisLabels"
+              type="checkbox"
+              @change="updateViewOption('showAxisLabels', $event.target.checked)"
+            />
+          </label>
+        </div>
+
+        <div class="settings-grid">
+          <label>
+            <span>范围</span>
+            <input
+              :value="viewSettings.range"
+              type="number"
+              min="2"
+              max="10"
+              step="0.5"
+              @input="updateViewSetting('range', $event.target.value)"
+            />
+          </label>
+          <label>
+            <span>采样</span>
+            <input
+              :value="viewSettings.segments"
+              type="number"
+              min="24"
+              max="140"
+              step="4"
+              @input="updateViewSetting('segments', $event.target.value)"
+            />
+          </label>
+          <label>
+            <span>|z|≤</span>
+            <input
+              :value="viewSettings.zLimit"
+              type="number"
+              min="2"
+              max="30"
+              step="1"
+              @input="updateViewSetting('zLimit', $event.target.value)"
+            />
+          </label>
+        </div>
+      </section>
     </div>
 
-    <!-- 点输入 -->
-    <div class="section">
-      <label class="section-label">📍 选定点 P₀</label>
-      <div class="coord-row">
-        <div class="coord-item">
-          <span class="coord-label">x₀</span>
-          <input v-model.number="localPoint.x" class="coord-input" type="number" step="any" @input="onPointChange" />
-        </div>
-        <div class="coord-item">
-          <span class="coord-label">y₀</span>
-          <input v-model.number="localPoint.y" class="coord-input" type="number" step="any" @input="onPointChange" />
-        </div>
-        <div class="coord-item">
-          <span class="coord-label">z₀</span>
-          <input v-model.number="localPoint.z" class="coord-input" type="number" step="any" @input="onPointChange" />
-        </div>
-      </div>
-      <div class="info-row">
-        <span>f(P₀) = {{ functionValue }}</span>
-      </div>
-    </div>
-
-    <!-- 向量输入 -->
-    <div class="section">
-      <label class="section-label">➡️ 方向向量 v⃗</label>
-      <div class="coord-row">
-        <div class="coord-item">
-          <span class="coord-label">vₓ</span>
-          <input v-model.number="localVector.x" class="coord-input" type="number" step="any" @input="onVectorChange" />
-        </div>
-        <div class="coord-item">
-          <span class="coord-label">vᵧ</span>
-          <input v-model.number="localVector.y" class="coord-input" type="number" step="any" @input="onVectorChange" />
-        </div>
-        <div class="coord-item">
-          <span class="coord-label">v_z</span>
-          <input v-model.number="localVector.z" class="coord-input" type="number" step="any" @input="onVectorChange" />
-        </div>
-      </div>
-    </div>
-
-    <!-- 输出结果 -->
-    <div class="section result-section">
-      <label class="section-label">📊 计算结果</label>
-      
-      <div class="result-card">
-        <div class="result-label">方向导数 D_v⃗ f(P₀)</div>
-        <div class="result-value highlight">{{ directionalDerivative }}</div>
-      </div>
-
-      <div v-if="gradientInfo" class="result-card">
-        <div class="result-label">梯度 ∇f(P₀)</div>
-        <div class="result-value">
-          ({{ gradientInfo.x }}, {{ gradientInfo.y }}, {{ gradientInfo.z }})
-        </div>
-      </div>
-
-      <div class="legend">
-        <div class="legend-item">
-          <span class="legend-dot" style="background:#ff0000"></span> 红色: 选定点 P₀
-        </div>
-        <div class="legend-item">
-          <span class="legend-dot" style="background:#ffff00"></span> 黄色: 曲面上的投影点
-        </div>
-        <div class="legend-item">
-          <span class="legend-dot" style="background:#00ff00"></span> 绿色箭头: 方向向量
-        </div>
-        <div class="legend-item" style="font-size:11px;color:#888;margin-top:6px">
-          🖱️ 鼠标拖拽旋转 · 滚轮缩放 · 右键平移
-        </div>
-      </div>
-    </div>
-  </div>
+    <footer class="panel-actions">
+      <button class="action-button" type="button" @click="$emit('toggle-theme')">
+        <span>{{ theme === 'dark' ? '☀' : '◐' }}</span>
+        {{ theme === 'dark' ? '亮色主题' : '暗色主题' }}
+      </button>
+      <button class="action-button" type="button" @click="$emit('toggle-presentation')">
+        <span>◈</span>
+        {{ presentationMode ? '完整模式' : '演示模式' }}
+      </button>
+    </footer>
+  </aside>
 </template>
-
-<style scoped>
-.control-panel {
-  width: 340px;
-  height: 100%;
-  background: #f8fafc;
-  border-left: 1px solid #d0d8e0;
-  padding: 20px 16px;
-  overflow-y: auto;
-  color: #2c3e50;
-  font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
-  box-sizing: border-box;
-  box-shadow: -2px 0 12px rgba(0, 0, 0, 0.06);
-}
-
-.panel-title {
-  font-size: 18px;
-  font-weight: 700;
-  margin: 0 0 18px 0;
-  padding-bottom: 14px;
-  text-align: center;
-  color: #e94560;
-  letter-spacing: 1px;
-  border-bottom: 2px solid #e2e8f0;
-}
-
-.section {
-  margin-bottom: 18px;
-}
-
-.section-label {
-  display: block;
-  font-weight: 600;
-  margin-bottom: 8px;
-  color: #4a5568;
-  font-size: 14px;
-}
-
-.func-input-row {
-  display: flex;
-  gap: 6px;
-}
-
-.func-input {
-  flex: 1;
-  padding: 10px 12px;
-  border: 1px solid #cbd5e0;
-  border-radius: 6px;
-  background: #ffffff;
-  color: #2c3e50;
-  font-size: 15px;
-  font-family: 'Consolas', 'Courier New', monospace;
-  outline: none;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-.func-input:focus {
-  border-color: #e94560;
-  box-shadow: 0 0 0 3px rgba(233, 69, 96, 0.1);
-}
-
-.symbol-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 8px;
-}
-
-.sym-btn {
-  padding: 4px 8px;
-  border: 1px solid #cbd5e0;
-  border-radius: 4px;
-  background: #edf2f7;
-  color: #4a5568;
-  cursor: pointer;
-  font-size: 12px;
-  font-family: 'Consolas', monospace;
-  transition: all 0.15s;
-}
-.sym-btn:hover {
-  background: #e94560;
-  color: #fff;
-  border-color: #e94560;
-}
-
-.func-hint {
-  font-size: 11px;
-  color: #94a3b8;
-  margin-top: 6px;
-  line-height: 1.5;
-}
-.hint-dim {
-  color: #a0aec0;
-}
-
-.coord-row {
-  display: flex;
-  gap: 8px;
-}
-
-.coord-item {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.coord-label {
-  font-size: 12px;
-  color: #718096;
-  font-family: 'Consolas', monospace;
-}
-
-.coord-input {
-  padding: 8px 10px;
-  border: 1px solid #cbd5e0;
-  border-radius: 6px;
-  background: #ffffff;
-  color: #2c3e50;
-  font-size: 14px;
-  font-family: 'Consolas', monospace;
-  outline: none;
-  width: 100%;
-  box-sizing: border-box;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-.coord-input:focus {
-  border-color: #e94560;
-  box-shadow: 0 0 0 3px rgba(233, 69, 96, 0.1);
-}
-
-.info-row {
-  margin-top: 6px;
-  font-size: 13px;
-  color: #718096;
-}
-
-.result-section {
-  margin-top: 8px;
-}
-
-.result-card {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 12px 14px;
-  margin-bottom: 10px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-}
-
-.result-label {
-  font-size: 12px;
-  color: #718096;
-  margin-bottom: 4px;
-}
-
-.result-value {
-  font-size: 16px;
-  font-weight: 600;
-  color: #2c3e50;
-  font-family: 'Consolas', monospace;
-  word-break: break-all;
-}
-
-.result-value.highlight {
-  color: #e94560;
-  font-size: 20px;
-}
-
-.legend {
-  margin-top: 12px;
-  padding: 10px;
-  background: #ffffff;
-  border-radius: 6px;
-  border: 1px solid #e2e8f0;
-}
-
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: #4a5568;
-  margin-bottom: 4px;
-}
-
-.legend-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-/* 滚动条美化 */
-.control-panel::-webkit-scrollbar {
-  width: 6px;
-}
-.control-panel::-webkit-scrollbar-track {
-  background: #f1f5f9;
-}
-.control-panel::-webkit-scrollbar-thumb {
-  background: #cbd5e0;
-  border-radius: 3px;
-}
-</style>
