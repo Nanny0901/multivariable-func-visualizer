@@ -8,7 +8,6 @@ import {
   vectorFromAngleDegrees,
 } from '../utils/mathModel'
 import {
-  expressionToLatex,
   numberToLatex,
   pointToLatex,
   vectorToLatex,
@@ -34,7 +33,6 @@ const emit = defineEmits([
   'update:vector',
 ])
 
-const localExpression = ref(props.funcExpression)
 const localLatex = ref(props.funcLatex)
 const localPoint = ref({ ...props.point })
 const localVector = ref({ ...props.vector })
@@ -46,13 +44,6 @@ const sections = [
   { id: 'geometry', label: '几何', icon: '⌖' },
   { id: 'result', label: '结果', icon: '∇' },
 ]
-
-watch(
-  () => props.funcExpression,
-  (value) => {
-    localExpression.value = value
-  },
-)
 
 watch(
   () => props.funcLatex,
@@ -89,8 +80,6 @@ const expressionStatus = computed(() =>
         text: props.analysis.model?.error ?? props.analysis.error ?? '表达式无法解析',
       },
 )
-
-const currentFunctionLatex = computed(() => props.funcLatex || expressionToLatex(props.funcExpression))
 
 const pointLabel = computed(() => {
   const point = props.analysis.point
@@ -146,7 +135,6 @@ const vectorLengthLabel = computed(() => formatNumber(props.analysis.vector?.len
 
 const updateFormula = (payload) => {
   localLatex.value = payload.latex
-  localExpression.value = payload.expression
   emit('update:formula', payload)
 }
 
@@ -235,16 +223,6 @@ const applyPreset = (preset) => {
           <span>{{ expressionStatus.type === 'ok' ? '✓' : '!' }}</span>
           {{ expressionStatus.text }}
         </p>
-
-        <div class="formula-preview-card">
-          <span>公式预览</span>
-          <MathRenderer :latex="`z=${currentFunctionLatex || '0'}`" />
-        </div>
-
-        <div class="compute-expression">
-          <span>计算表达式</span>
-          <code>{{ localExpression || '—' }}</code>
-        </div>
 
         <div class="preset-list">
           <button

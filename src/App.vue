@@ -8,7 +8,6 @@ import { analyzeFunction, formatNumber } from './utils/mathModel'
 import {
   expressionToLatex,
   numberToLatex,
-  pointToLatex,
   vectorToLatex,
 } from './utils/formulaModel'
 
@@ -25,6 +24,7 @@ const point = ref({ ...initialPreset.point })
 const vector = ref({ ...initialPreset.vector })
 const theme = ref('light')
 const drawerOpen = ref(false)
+const panelCollapsed = ref(false)
 const panelWidth = ref(defaultPanelWidth)
 const isResizingPanel = ref(false)
 
@@ -72,7 +72,7 @@ const formulaLabel = computed(() =>
 const currentFunctionLatex = computed(() => funcLatex.value || expressionToLatex(funcExpression.value))
 
 const appShellStyle = computed(() => ({
-  '--panel-width': `${panelWidth.value}px`,
+  '--panel-width': panelCollapsed.value ? '0px' : `${panelWidth.value}px`,
 }))
 
 const derivativeLatex = computed(() => {
@@ -87,8 +87,6 @@ const derivativeLatex = computed(() => {
     `=${numberToLatex(analysis.value.directionalDerivative)}`,
   ].join('')
 })
-
-const pointLatex = computed(() => `P_0=${pointToLatex(analysis.value.point)}`)
 
 const gradientLatex = computed(() => {
   const gradient = analysis.value.gradient
@@ -198,6 +196,7 @@ const stopPanelResize = () => {
 }
 
 const startPanelResize = (event) => {
+  if (panelCollapsed.value) return
   if (window.matchMedia?.('(max-width: 1180px)').matches) return
   event.preventDefault()
   isResizingPanel.value = true
@@ -208,6 +207,7 @@ const startPanelResize = (event) => {
 }
 
 const resizePanelWithKeyboard = (event) => {
+  if (panelCollapsed.value) return
   const step = event.shiftKey ? 40 : 16
   const keyMap = {
     ArrowLeft: -step,
@@ -221,12 +221,17 @@ const resizePanelWithKeyboard = (event) => {
   panelWidth.value = clampPanelWidth(panelWidth.value + delta)
 }
 
+const togglePanelCollapsed = () => {
+  stopPanelResize()
+  panelCollapsed.value = !panelCollapsed.value
+}
+
 </script>
 
 <template>
   <main
     class="app-shell"
-    :class="{ 'drawer-open': drawerOpen }"
+    :class="{ 'drawer-open': drawerOpen, 'panel-collapsed': panelCollapsed }"
     :style="appShellStyle"
   >
     <header class="mobile-topbar">
@@ -243,6 +248,7 @@ const resizePanelWithKeyboard = (event) => {
     </header>
 
     <ControlPanel
+      v-if="!panelCollapsed"
       :analysis="analysis"
       :func-expression="funcExpression"
       :func-latex="funcLatex"
@@ -289,10 +295,15 @@ const resizePanelWithKeyboard = (event) => {
       />
 
       <div class="stage-topbar">
-        <div class="formula-pill">
-          <span>当前曲面</span>
-          <strong><MathRenderer :latex="`z=${currentFunctionLatex || '0'}`" /></strong>
-        </div>
+        <button
+          class="panel-collapse-button"
+          type="button"
+          :aria-label="panelCollapsed ? '展开左侧控制栏' : '收起左侧控制栏'"
+          :title="panelCollapsed ? '展开左侧控制栏' : '收起左侧控制栏'"
+          @click="togglePanelCollapsed"
+        >
+          {{ panelCollapsed ? '☰' : '‹' }}
+        </button>
       </div>
 
       <div class="floating-result" :class="{ error: !analysis.ok }">
@@ -304,8 +315,8 @@ const resizePanelWithKeyboard = (event) => {
 
       <div class="quick-metrics">
         <article>
-          <span>P₀</span>
-          <strong><MathRenderer :latex="pointLatex" /></strong>
+          <span>当前曲面</span>
+          <strong><MathRenderer :latex="`z=${currentFunctionLatex || '0'}`" /></strong>
         </article>
         <article>
           <span>∇f(P₀)</span>

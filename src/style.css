@@ -125,12 +125,23 @@ textarea:focus-visible {
   gap: 10px;
   width: 100vw;
   height: 100vh;
-  padding: 16px;
+  padding: 16px 0 16px 16px;
   overflow: hidden;
   background:
     radial-gradient(circle at 8% 12%, var(--bg-accent-1), transparent 34%),
     radial-gradient(circle at 92% 18%, var(--bg-accent-2), transparent 30%),
     linear-gradient(135deg, var(--bg) 0%, color-mix(in srgb, var(--bg) 82%, var(--surface-2)) 100%);
+}
+
+.app-shell.panel-collapsed {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  padding: 0;
+}
+
+.panel-collapsed .control-panel,
+.panel-collapsed .panel-resizer {
+  display: none;
 }
 
 .control-panel {
@@ -305,16 +316,16 @@ textarea:focus-visible {
 
 .panel-scroll {
   min-height: 0;
-  padding: 0 14px 12px;
+  padding: 0 18px 18px;
   overflow-y: auto;
 }
 
 .panel-section {
-  padding: 16px;
-  border: 1px solid var(--outline);
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--surface) 86%, transparent);
-  box-shadow: var(--shadow-1);
+  padding: 0 2px 12px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .section-title {
@@ -418,31 +429,6 @@ textarea:focus-visible {
   background: var(--surface-2);
   font-size: 12px;
   font-weight: 800;
-}
-
-.formula-preview-card,
-.compute-expression {
-  display: grid;
-  gap: 6px;
-  margin: 10px 0;
-  padding: 10px 12px;
-  border: 1px solid var(--outline);
-  border-radius: 18px;
-  background: var(--surface-2);
-}
-
-.formula-preview-card > span,
-.compute-expression > span {
-  color: var(--on-surface-variant);
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.compute-expression code {
-  overflow-wrap: anywhere;
-  color: var(--secondary);
-  font-size: 12px;
-  line-height: 1.45;
 }
 
 .math-renderer {
@@ -556,8 +542,6 @@ textarea:focus-visible {
   font-size: 14px;
 }
 
-.formula-preview-card .math-renderer,
-.formula-pill .math-renderer,
 .floating-result .math-renderer,
 .result-card .math-renderer,
 .quick-metrics .math-renderer,
@@ -569,8 +553,6 @@ textarea:focus-visible {
   vertical-align: middle;
 }
 
-.formula-preview-card,
-.formula-pill,
 .floating-result,
 .result-card,
 .quick-metrics article,
@@ -579,8 +561,6 @@ textarea:focus-visible {
   min-width: 0;
 }
 
-.formula-preview-card .katex,
-.formula-pill .katex,
 .floating-result .katex,
 .result-card .katex,
 .quick-metrics .katex,
@@ -743,13 +723,10 @@ textarea:focus-visible {
   position: relative;
   min-width: 0;
   overflow: hidden;
-  border: 1px solid var(--outline);
-  border-radius: var(--radius-lg);
-  background:
-    radial-gradient(circle at 24% 18%, color-mix(in srgb, var(--primary) 18%, transparent), transparent 34%),
-    radial-gradient(circle at 78% 22%, color-mix(in srgb, var(--secondary) 14%, transparent), transparent 32%),
-    var(--surface);
-  box-shadow: var(--shadow-3);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .visual-stage::before {
@@ -803,7 +780,6 @@ textarea:focus-visible {
   pointer-events: none;
 }
 
-.formula-pill,
 .plot-legend,
 .floating-result,
 .quick-metrics article {
@@ -813,20 +789,32 @@ textarea:focus-visible {
   backdrop-filter: blur(18px);
 }
 
-.formula-pill {
+.panel-collapse-button {
   display: grid;
-  max-width: min(560px, 58vw);
-  gap: 3px;
-  padding: 11px 14px;
-  border-radius: 20px;
+  width: 46px;
+  height: 46px;
+  place-items: center;
+  border: 1px solid var(--outline);
+  border-radius: 16px;
+  color: var(--on-surface);
+  background: var(--surface-glass);
+  box-shadow: var(--shadow-1);
+  cursor: pointer;
+  font-size: 28px;
+  font-weight: 900;
+  line-height: 1;
+  pointer-events: auto;
+  backdrop-filter: blur(18px);
+  transition:
+    transform 0.16s,
+    background 0.16s,
+    color 0.16s;
 }
 
-.formula-pill strong {
-  overflow: hidden;
-  color: var(--on-surface);
-  font-size: 15px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.panel-collapse-button:hover {
+  color: var(--primary-strong);
+  background: var(--primary-container);
+  transform: translateY(-1px);
 }
 
 .plot-legend {
@@ -835,7 +823,7 @@ textarea:focus-visible {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  max-width: min(640px, calc(100% - 360px));
+  max-width: min(640px, calc(100% - 430px));
   padding: 10px 12px;
   border-radius: 18px;
   color: var(--on-surface);
@@ -973,7 +961,7 @@ textarea:focus-visible {
     grid-template-columns: 1fr;
     height: auto;
     min-height: 100vh;
-    padding-top: 74px;
+    padding: 74px 16px 16px;
   }
 
   .panel-resizer {
@@ -1075,11 +1063,11 @@ textarea:focus-visible {
 
   .visual-stage {
     min-height: 680px;
-    border-radius: 24px;
+    border-radius: 0;
   }
 
-  .formula-pill {
-    max-width: none;
+  .stage-topbar {
+    display: none;
   }
 
   .quick-metrics {
