@@ -1,29 +1,32 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import ControlPanel from './components/ControlPanel.vue'
 import FunctionPlot from './components/FunctionPlot.vue'
+import MathRenderer from './components/MathRenderer.vue'
 import { functionPresets } from './data/presets'
-import { analyzeFunction, defaultViewSettings, formatNumber } from './utils/mathModel'
+import { analyzeFunction, formatNumber } from './utils/mathModel'
+import {
+  expressionToLatex,
+  numberToLatex,
+  pointToLatex,
+  vectorToLatex,
+} from './utils/formulaModel'
 
 const initialPreset = functionPresets[0]
 const themeStorageKey = 'mfv-theme'
+const panelWidthStorageKey = 'mfv-panel-width'
+const defaultPanelWidth = 392
+const minPanelWidth = 320
+const maxPanelWidth = 560
 
 const funcExpression = ref(initialPreset.expression)
+const funcLatex = ref(initialPreset.latex)
 const point = ref({ ...initialPreset.point })
 const vector = ref({ ...initialPreset.vector })
-const viewSettings = ref({ ...defaultViewSettings })
-const viewOptions = ref({
-  showGrid: true,
-  showTangentPlane: true,
-  showGradient: true,
-  showDirectionCurve: true,
-  showWireframe: true,
-  showAxisLabels: true,
-})
-const viewCommand = ref({ type: 'iso', nonce: 0 })
 const theme = ref('light')
-const presentationMode = ref(false)
 const drawerOpen = ref(false)
+const panelWidth = ref(defaultPanelWidth)
+const isResizingPanel = ref(false)
 
 const analysis = computed(() =>
   analyzeFunction({
@@ -66,6 +69,35 @@ const formulaLabel = computed(() =>
     : analysis.value.error,
 )
 
+const currentFunctionLatex = computed(() => funcLatex.value || expressionToLatex(funcExpression.value))
+
+const appShellStyle = computed(() => ({
+  '--panel-width': `${panelWidth.value}px`,
+}))
+
+const derivativeLatex = computed(() => {
+  if (!analysis.value.ok) return '\\text{无法计算}'
+
+  const gradient = analysis.value.gradient
+  const unit = analysis.value.vector?.unit
+  return [
+    'D_{\\mathbf u}f(P_0)',
+    '=\\nabla f(P_0)\\cdot\\mathbf u',
+    `=${numberToLatex(gradient.x)}\\cdot${numberToLatex(unit.x)}+${numberToLatex(gradient.y)}\\cdot${numberToLatex(unit.y)}`,
+    `=${numberToLatex(analysis.value.directionalDerivative)}`,
+  ].join('')
+})
+
+const pointLatex = computed(() => `P_0=${pointToLatex(analysis.value.point)}`)
+
+const gradientLatex = computed(() => {
+  const gradient = analysis.value.gradient
+  if (!gradient) return '\\nabla f(P_0)=\\text{--}'
+  return `\\nabla f(P_0)=\\left(${numberToLatex(gradient.x)},${numberToLatex(gradient.y)}\\right)`
+})
+
+const unitVectorLatex = computed(() => `\\mathbf u=${vectorToLatex(analysis.value.vector)}`)
+
 watch(
   () => analysis.value.point?.z,
   (z) => {
@@ -84,11 +116,31 @@ watch(
   { flush: 'post' },
 )
 
+watch(
+  panelWidth,
+  (width) => {
+    localStorage.setItem(panelWidthStorageKey, String(width))
+  },
+  { flush: 'post' },
+)
+
+const clampPanelWidth = (width) =>
+  Math.min(maxPanelWidth, Math.max(minPanelWidth, Math.round(Number(width))))
+
 onMounted(() => {
   const savedTheme = localStorage.getItem(themeStorageKey)
   const systemTheme = window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
   theme.value = savedTheme || systemTheme || 'light'
   document.documentElement.dataset.theme = theme.value
+
+  const savedPanelWidth = Number(localStorage.getItem(panelWidthStorageKey))
+  panelWidth.value = Number.isFinite(savedPanelWidth)
+    ? clampPanelWidth(savedPanelWidth)
+    : defaultPanelWidth
+})
+
+onBeforeUnmount(() => {
+  stopPanelResize()
 })
 
 const updateExpression = (expression) => {
@@ -110,38 +162,72 @@ const updateVector = (nextVector) => {
   }
 }
 
-const updateViewSettings = (settings) => {
-  viewSettings.value = { ...viewSettings.value, ...settings }
-}
-
-const updateViewOptions = (options) => {
-  viewOptions.value = { ...viewOptions.value, ...options }
-}
-
 const applyPreset = (preset) => {
   funcExpression.value = preset.expression
+  funcLatex.value = preset.latex || preset.expression
   point.value = { ...preset.point }
   vector.value = { ...preset.vector }
   drawerOpen.value = false
+}
+
+const updateFormula = (payload) => {
+  funcLatex.value = payload.latex
+  if (payload.ok) {
+    funcExpression.value = payload.expression
+  } else {
+    funcExpression.value = payload.expression || ''
+  }
 }
 
 const toggleTheme = () => {
   theme.value = theme.value === 'dark' ? 'light' : 'dark'
 }
 
-const togglePresentationMode = () => {
-  presentationMode.value = !presentationMode.value
+const updatePanelResize = (event) => {
+  if (!isResizingPanel.value) return
+  panelWidth.value = clampPanelWidth(event.clientX - 16)
 }
 
-const requestView = (type) => {
-  viewCommand.value = { type, nonce: Date.now() }
+const stopPanelResize = () => {
+  if (!isResizingPanel.value) return
+  isResizingPanel.value = false
+  document.body.classList.remove('resizing-panel')
+  window.removeEventListener('pointermove', updatePanelResize)
+  window.removeEventListener('pointerup', stopPanelResize)
+  window.removeEventListener('pointercancel', stopPanelResize)
 }
+
+const startPanelResize = (event) => {
+  if (window.matchMedia?.('(max-width: 1180px)').matches) return
+  event.preventDefault()
+  isResizingPanel.value = true
+  document.body.classList.add('resizing-panel')
+  window.addEventListener('pointermove', updatePanelResize)
+  window.addEventListener('pointerup', stopPanelResize)
+  window.addEventListener('pointercancel', stopPanelResize)
+}
+
+const resizePanelWithKeyboard = (event) => {
+  const step = event.shiftKey ? 40 : 16
+  const keyMap = {
+    ArrowLeft: -step,
+    ArrowRight: step,
+    Home: minPanelWidth - panelWidth.value,
+    End: maxPanelWidth - panelWidth.value,
+  }
+  const delta = keyMap[event.key]
+  if (delta === undefined) return
+  event.preventDefault()
+  panelWidth.value = clampPanelWidth(panelWidth.value + delta)
+}
+
 </script>
 
 <template>
   <main
     class="app-shell"
-    :class="{ 'presentation-mode': presentationMode, 'drawer-open': drawerOpen }"
+    :class="{ 'drawer-open': drawerOpen }"
+    :style="appShellStyle"
   >
     <header class="mobile-topbar">
       <button class="icon-button" type="button" aria-label="打开菜单" @click="drawerOpen = true">
@@ -159,23 +245,31 @@ const requestView = (type) => {
     <ControlPanel
       :analysis="analysis"
       :func-expression="funcExpression"
+      :func-latex="funcLatex"
       :point="point"
       :presets="functionPresets"
-      :presentation-mode="presentationMode"
       :theme="theme"
       :vector="vector"
-      :view-options="viewOptions"
-      :view-settings="viewSettings"
       @apply-preset="applyPreset"
       @close-drawer="drawerOpen = false"
-      @request-view="requestView"
-      @toggle-presentation="togglePresentationMode"
       @toggle-theme="toggleTheme"
+      @update:formula="updateFormula"
       @update:func-expression="updateExpression"
       @update:point="updatePoint"
       @update:vector="updateVector"
-      @update:view-options="updateViewOptions"
-      @update:view-settings="updateViewSettings"
+    />
+
+    <div
+      class="panel-resizer"
+      role="separator"
+      aria-label="调整左侧控制栏宽度"
+      aria-orientation="vertical"
+      :aria-valuemin="minPanelWidth"
+      :aria-valuemax="maxPanelWidth"
+      :aria-valuenow="panelWidth"
+      tabindex="0"
+      @pointerdown="startPanelResize"
+      @keydown="resizePanelWithKeyboard"
     />
 
     <button
@@ -192,42 +286,34 @@ const requestView = (type) => {
         :point="snappedPoint"
         :theme="theme"
         :vector="vector"
-        :view-command="viewCommand"
-        :view-options="viewOptions"
-        :view-settings="viewSettings"
       />
 
       <div class="stage-topbar">
         <div class="formula-pill">
           <span>当前曲面</span>
-          <strong>z = {{ analysis.model?.expression || funcExpression }}</strong>
-        </div>
-        <div class="view-actions">
-          <button type="button" @click="requestView('iso')">三维</button>
-          <button type="button" @click="requestView('top')">俯视</button>
-          <button type="button" @click="requestView('front')">正视</button>
-          <button type="button" @click="requestView('side')">侧视</button>
+          <strong><MathRenderer :latex="`z=${currentFunctionLatex || '0'}`" /></strong>
         </div>
       </div>
 
       <div class="floating-result" :class="{ error: !analysis.ok }">
         <span>方向导数</span>
         <strong>{{ derivativeLabel }}</strong>
-        <p>{{ formulaLabel }}</p>
+        <p v-if="!analysis.ok">{{ formulaLabel }}</p>
+        <MathRenderer v-else :latex="derivativeLatex" display-mode />
       </div>
 
       <div class="quick-metrics">
         <article>
           <span>P₀</span>
-          <strong>{{ pointLabel }}</strong>
+          <strong><MathRenderer :latex="pointLatex" /></strong>
         </article>
         <article>
           <span>∇f(P₀)</span>
-          <strong>{{ gradientLabel }}</strong>
+          <strong><MathRenderer :latex="gradientLatex" /></strong>
         </article>
         <article>
           <span>单位方向 u</span>
-          <strong>{{ unitVectorLabel }}</strong>
+          <strong><MathRenderer :latex="unitVectorLatex" /></strong>
         </article>
       </div>
     </section>

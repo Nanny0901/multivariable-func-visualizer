@@ -13,14 +13,10 @@ const props = defineProps({
   funcExpression: { type: String, default: 'x^2 + y^2' },
   point: { type: Object, default: () => ({ x: 1, y: 1, z: 2 }) },
   vector: { type: Object, default: () => ({ x: 1, y: 0 }) },
-  viewSettings: { type: Object, required: true },
-  viewOptions: { type: Object, required: true },
-  viewCommand: { type: Object, default: () => ({ type: 'iso', nonce: 0 }) },
   theme: { type: String, default: 'light' },
 })
 
 const canvasContainer = ref(null)
-const surfaceHint = ref('')
 
 let scene
 let camera
@@ -142,8 +138,6 @@ const createTextSprite = (text, color) => {
 }
 
 const addSceneLabel = (text, position, color) => {
-  if (!props.viewOptions.showAxisLabels && ['x', 'y', 'z'].includes(text)) return
-
   const label = createTextSprite(text, color)
   label.position.copy(position)
   scene.add(label)
@@ -203,9 +197,7 @@ const buildAxes = () => {
 
   scene.add(axesGroup)
 
-  if (props.viewOptions.showAxisLabels) {
-    axes.forEach((axis) => addSceneLabel(axis.label, axis.position, axis.labelColor))
-  }
+  axes.forEach((axis) => addSceneLabel(axis.label, axis.position, axis.labelColor))
 }
 
 const updateStaticScene = () => {
@@ -215,11 +207,9 @@ const updateStaticScene = () => {
   scene.fog = new THREE.Fog(palette.fog, 15, 30)
 
   removeObject(gridHelper)
-  if (props.viewOptions.showGrid) {
-    gridHelper = new THREE.GridHelper(12, 24, palette.gridCenter, palette.grid)
-    gridHelper.position.y = -0.01
-    scene.add(gridHelper)
-  }
+  gridHelper = new THREE.GridHelper(12, 24, palette.gridCenter, palette.grid)
+  gridHelper.position.y = -0.01
+  scene.add(gridHelper)
 
   referencePlanes.forEach(removeObject)
   referencePlanes = []
@@ -247,7 +237,7 @@ const updateStaticScene = () => {
 
 const buildSurfaceMeshes = () => {
   const model = createFunctionModel(props.funcExpression)
-  const sampled = sampleSurface(model, props.viewSettings)
+  const sampled = sampleSurface(model)
   const geometry = new THREE.BufferGeometry()
   const palette = getPalette()
 
@@ -276,10 +266,6 @@ const buildSurfaceMeshes = () => {
   })
   const wireframe = new THREE.Mesh(wireGeometry, wireMaterial)
 
-  surfaceHint.value = model.ok
-    ? `${sampled.stats.total - sampled.stats.skipped}/${sampled.stats.total} 个采样点有效`
-    : model.error
-
   return { surface, wireframe }
 }
 
@@ -291,7 +277,7 @@ const updateSurface = () => {
   surfaceMesh = meshes.surface
   wireframeMesh = meshes.wireframe
   scene.add(surfaceMesh)
-  if (props.viewOptions.showWireframe) scene.add(wireframeMesh)
+  scene.add(wireframeMesh)
 }
 
 const createPointMarker = (position) => {
@@ -331,7 +317,6 @@ const createLine = (points, color) => {
 }
 
 const createTangentPlane = (point, gradient) => {
-  if (!props.viewOptions.showTangentPlane) return null
   if (!Number.isFinite(gradient.x) || !Number.isFinite(gradient.y)) return null
 
   const palette = getPalette()
@@ -390,19 +375,17 @@ const updateMarkers = () => {
     baseDirectionLine = createLine(basePoints, palette.direction)
     scene.add(baseDirectionLine)
 
-    if (props.viewOptions.showDirectionCurve) {
-      const curvePoints = sampleCurveAlongDirection(model, point, vector.unit).map(mathToThree)
-      if (curvePoints.length > 1) {
-        tangentCurve = createLine(curvePoints, palette.directionLine)
-        scene.add(tangentCurve)
-      }
+    const curvePoints = sampleCurveAlongDirection(model, point, vector.unit).map(mathToThree)
+    if (curvePoints.length > 1) {
+      tangentCurve = createLine(curvePoints, palette.directionLine)
+      scene.add(tangentCurve)
     }
 
     addSceneLabel('u', graphPoint.clone().add(direction3.clone().multiplyScalar(1.95)), props.theme === 'dark' ? '#a7f3d0' : '#047857')
   }
 
   const gradientLength = Math.hypot(gradient?.x ?? 0, gradient?.y ?? 0)
-  if (props.viewOptions.showGradient && ok && gradientLength > 1e-8) {
+  if (ok && gradientLength > 1e-8) {
     const gradient2 = { x: gradient.x / gradientLength, y: gradient.y / gradientLength }
     const gradient3 = new THREE.Vector3(
       gradient2.x,
@@ -414,23 +397,6 @@ const updateMarkers = () => {
     scene.add(gradientArrow)
     addSceneLabel('∇f', graphPoint.clone().add(gradient3.clone().multiplyScalar(1.7)), props.theme === 'dark' ? '#f5d0fe' : '#be185d')
   }
-}
-
-const applyViewCommand = (type = 'iso') => {
-  if (!camera || !controls) return
-
-  const distance = 12
-  const views = {
-    iso: new THREE.Vector3(8.2, 6.2, 9.2),
-    top: new THREE.Vector3(0.01, distance, 0.01),
-    front: new THREE.Vector3(0, 3.2, distance),
-    side: new THREE.Vector3(distance, 3.2, 0),
-  }
-  const nextPosition = views[type] ?? views.iso
-  camera.position.copy(nextPosition)
-  camera.lookAt(0, 0, 0)
-  controls.target.set(0, 0, 0)
-  controls.update()
 }
 
 const initScene = () => {
@@ -494,26 +460,15 @@ const onResize = () => {
 }
 
 watch(
-  () => [props.funcExpression, props.viewSettings.range, props.viewSettings.segments, props.viewSettings.zLimit, props.theme],
+  () => [props.funcExpression, props.theme],
   () => {
     updateStaticScene()
     updateSurface()
     updateMarkers()
   },
-)
-
-watch(
-  () => props.viewOptions,
-  () => {
-    updateStaticScene()
-    updateSurface()
-    updateMarkers()
-  },
-  { deep: true },
 )
 
 watch(() => props.analysis, updateMarkers, { deep: true })
-watch(() => props.viewCommand?.nonce, () => applyViewCommand(props.viewCommand?.type))
 
 onMounted(() => {
   initScene()
@@ -538,16 +493,11 @@ onUnmounted(() => {
   <div class="canvas-wrap">
     <div ref="canvasContainer" class="canvas-container" />
 
-    <div class="plot-toolbar">
-      <span class="status-dot" :class="{ warn: !analysis.model?.ok }" />
-      <span>{{ surfaceHint }}</span>
-    </div>
-
     <div class="plot-legend">
       <span><i class="orange" />选定点</span>
       <span><i class="green" />单位方向 u</span>
-      <span v-if="viewOptions.showGradient"><i class="pink" />梯度 ∇f</span>
-      <span v-if="viewOptions.showDirectionCurve"><i class="teal" />方向截线</span>
+      <span><i class="pink" />梯度 ∇f</span>
+      <span><i class="teal" />方向截线</span>
     </div>
   </div>
 </template>

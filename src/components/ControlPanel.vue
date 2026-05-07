@@ -1,38 +1,41 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { symbolButtons } from '../data/presets'
+import FormulaInput from './FormulaInput.vue'
+import MathRenderer from './MathRenderer.vue'
 import {
   formatNumber,
   vectorAngleDegrees,
   vectorFromAngleDegrees,
 } from '../utils/mathModel'
+import {
+  expressionToLatex,
+  numberToLatex,
+  pointToLatex,
+  vectorToLatex,
+} from '../utils/formulaModel'
 
 const props = defineProps({
   analysis: { type: Object, required: true },
   funcExpression: { type: String, default: 'x^2 + y^2' },
+  funcLatex: { type: String, default: 'x^2+y^2' },
   point: { type: Object, default: () => ({ x: 1, y: 1 }) },
   vector: { type: Object, default: () => ({ x: 1, y: 0 }) },
   presets: { type: Array, default: () => [] },
-  viewSettings: { type: Object, required: true },
-  viewOptions: { type: Object, required: true },
   theme: { type: String, default: 'light' },
-  presentationMode: { type: Boolean, default: false },
 })
 
 const emit = defineEmits([
   'apply-preset',
   'close-drawer',
-  'request-view',
-  'toggle-presentation',
   'toggle-theme',
+  'update:formula',
   'update:func-expression',
   'update:point',
   'update:vector',
-  'update:view-options',
-  'update:view-settings',
 ])
 
 const localExpression = ref(props.funcExpression)
+const localLatex = ref(props.funcLatex)
 const localPoint = ref({ ...props.point })
 const localVector = ref({ ...props.vector })
 const angle = ref(vectorAngleDegrees(props.vector))
@@ -42,13 +45,19 @@ const sections = [
   { id: 'function', label: '函数', icon: 'ƒ' },
   { id: 'geometry', label: '几何', icon: '⌖' },
   { id: 'result', label: '结果', icon: '∇' },
-  { id: 'view', label: '视图', icon: '◱' },
 ]
 
 watch(
   () => props.funcExpression,
   (value) => {
     localExpression.value = value
+  },
+)
+
+watch(
+  () => props.funcLatex,
+  (value) => {
+    localLatex.value = value
   },
 )
 
@@ -81,6 +90,8 @@ const expressionStatus = computed(() =>
       },
 )
 
+const currentFunctionLatex = computed(() => props.funcLatex || expressionToLatex(props.funcExpression))
+
 const pointLabel = computed(() => {
   const point = props.analysis.point
   return `(${formatNumber(point?.x)}, ${formatNumber(point?.y)}, ${formatNumber(point?.z)})`
@@ -108,20 +119,35 @@ const derivativeFormula = computed(() =>
     : props.analysis.error,
 )
 
+const derivativeLatex = computed(() => {
+  if (!props.analysis.ok) return '\\text{无法计算}'
+
+  const gradient = props.analysis.gradient
+  const unit = props.analysis.vector?.unit
+  return [
+    'D_{\\mathbf u}f(P_0)',
+    '=\\nabla f(P_0)\\cdot\\mathbf u',
+    `=${numberToLatex(gradient.x)}\\cdot${numberToLatex(unit.x)}+${numberToLatex(gradient.y)}\\cdot${numberToLatex(unit.y)}`,
+    `=${numberToLatex(props.analysis.directionalDerivative)}`,
+  ].join('')
+})
+
+const gradientLatex = computed(() => {
+  const gradient = props.analysis.gradient
+  if (!gradient) return '\\nabla f(P_0)=\\text{--}'
+  return `\\nabla f(P_0)=\\left(${numberToLatex(gradient.x)},${numberToLatex(gradient.y)}\\right)`
+})
+
+const unitVectorLatex = computed(() => `\\mathbf u=${vectorToLatex(props.analysis.vector)}`)
+
+const pointLatex = computed(() => `P_0=${pointToLatex(props.analysis.point)}`)
+
 const vectorLengthLabel = computed(() => formatNumber(props.analysis.vector?.length ?? NaN))
 
-const insertSymbol = (symbol) => {
-  localExpression.value = `${localExpression.value}${symbol}`
-  emit('update:func-expression', localExpression.value)
-}
-
-const clearExpression = () => {
-  localExpression.value = ''
-  emit('update:func-expression', '')
-}
-
-const updateExpression = () => {
-  emit('update:func-expression', localExpression.value)
+const updateFormula = (payload) => {
+  localLatex.value = payload.latex
+  localExpression.value = payload.expression
+  emit('update:formula', payload)
 }
 
 const updatePoint = () => {
@@ -142,20 +168,6 @@ const updateAngle = () => {
   const vector = vectorFromAngleDegrees(angle.value)
   localVector.value = vector
   emit('update:vector', vector)
-}
-
-const updateViewSetting = (key, value) => {
-  emit('update:view-settings', {
-    ...props.viewSettings,
-    [key]: Number(value),
-  })
-}
-
-const updateViewOption = (key, value) => {
-  emit('update:view-options', {
-    ...props.viewOptions,
-    [key]: value,
-  })
 }
 
 const resetVector = () => {
@@ -180,6 +192,15 @@ const applyPreset = (preset) => {
         <p>Math Analysis Studio</p>
         <h1>方向导数 Lab</h1>
       </div>
+      <button
+        class="theme-toggle"
+        type="button"
+        :aria-label="theme === 'dark' ? '切换到亮色主题' : '切换到暗色主题'"
+        :title="theme === 'dark' ? '亮色主题' : '暗色主题'"
+        @click="$emit('toggle-theme')"
+      >
+        {{ theme === 'dark' ? '☀' : '◐' }}
+      </button>
     </header>
 
     <nav class="section-nav" aria-label="控制分区">
@@ -205,34 +226,24 @@ const applyPreset = (preset) => {
           </div>
         </div>
 
-        <label class="expression-editor" for="func-input">
-          <span>z =</span>
-          <textarea
-            id="func-input"
-            v-model="localExpression"
-            rows="3"
-            spellcheck="false"
-            placeholder="例如 x^2 + y^2"
-            @input="updateExpression"
-          />
-          <button type="button" aria-label="清空函数" @click.prevent="clearExpression">清空</button>
-        </label>
+        <FormulaInput
+          :latex="localLatex"
+          @update="updateFormula"
+        />
 
         <p class="status-line" :class="expressionStatus.type">
           <span>{{ expressionStatus.type === 'ok' ? '✓' : '!' }}</span>
           {{ expressionStatus.text }}
         </p>
 
-        <div class="symbol-grid" aria-label="数学符号">
-          <button
-            v-for="symbol in symbolButtons"
-            :key="symbol.label"
-            class="chip"
-            type="button"
-            @click="insertSymbol(symbol.insert)"
-          >
-            {{ symbol.label }}
-          </button>
+        <div class="formula-preview-card">
+          <span>公式预览</span>
+          <MathRenderer :latex="`z=${currentFunctionLatex || '0'}`" />
+        </div>
+
+        <div class="compute-expression">
+          <span>计算表达式</span>
+          <code>{{ localExpression || '—' }}</code>
         </div>
 
         <div class="preset-list">
@@ -243,11 +254,13 @@ const applyPreset = (preset) => {
             type="button"
             @click="applyPreset(preset)"
           >
-            <span>
+            <span class="preset-copy">
               <strong>{{ preset.name }}</strong>
               <small>{{ preset.reason }}</small>
             </span>
-            <code>{{ preset.expression }}</code>
+            <span class="preset-formula">
+              <MathRenderer :latex="preset.latex || preset.expression" />
+            </span>
           </button>
         </div>
       </section>
@@ -274,7 +287,7 @@ const applyPreset = (preset) => {
 
         <article class="tonal-card">
           <span>当前曲面点</span>
-          <strong>P₀ = {{ pointLabel }}</strong>
+          <strong><MathRenderer :latex="pointLatex" /></strong>
         </article>
 
         <div class="field-group">
@@ -295,7 +308,7 @@ const applyPreset = (preset) => {
 
         <div class="vector-facts">
           <span>|v| = {{ vectorLengthLabel }}</span>
-          <span>u = {{ unitVectorLabel }}</span>
+          <span><MathRenderer :latex="unitVectorLatex" /></span>
           <button type="button" @click="resetVector">重置</button>
         </div>
       </section>
@@ -312,17 +325,18 @@ const applyPreset = (preset) => {
         <article class="result-card" :class="{ error: !analysis.ok }">
           <span>方向导数</span>
           <strong>{{ derivativeLabel }}</strong>
-          <p>{{ derivativeFormula }}</p>
+          <p v-if="!analysis.ok">{{ derivativeFormula }}</p>
+          <MathRenderer v-else :latex="derivativeLatex" display-mode />
         </article>
 
         <div class="metric-grid">
           <article>
             <span>梯度 ∇f(P₀)</span>
-            <strong>{{ gradientLabel }}</strong>
+            <strong><MathRenderer :latex="gradientLatex" /></strong>
           </article>
           <article>
             <span>单位方向 u</span>
-            <strong>{{ unitVectorLabel }}</strong>
+            <strong><MathRenderer :latex="unitVectorLatex" /></strong>
           </article>
           <article>
             <span>偏导公式</span>
@@ -331,120 +345,7 @@ const applyPreset = (preset) => {
         </div>
       </section>
 
-      <section v-show="activeSection === 'view'" class="panel-section">
-        <div class="section-title">
-          <span>04</span>
-          <div>
-            <h2>图像视图</h2>
-            <p>降低干扰，让曲面、方向和梯度更容易看清</p>
-          </div>
-        </div>
-
-        <div class="view-preset-grid">
-          <button type="button" @click="$emit('request-view', 'iso')">三维视图</button>
-          <button type="button" @click="$emit('request-view', 'top')">俯视图</button>
-          <button type="button" @click="$emit('request-view', 'front')">正视图</button>
-          <button type="button" @click="$emit('request-view', 'side')">侧视图</button>
-        </div>
-
-        <div class="switch-list">
-          <label>
-            <span>坐标网格</span>
-            <input
-              :checked="viewOptions.showGrid"
-              type="checkbox"
-              @change="updateViewOption('showGrid', $event.target.checked)"
-            />
-          </label>
-          <label>
-            <span>曲面网格线</span>
-            <input
-              :checked="viewOptions.showWireframe"
-              type="checkbox"
-              @change="updateViewOption('showWireframe', $event.target.checked)"
-            />
-          </label>
-          <label>
-            <span>切平面</span>
-            <input
-              :checked="viewOptions.showTangentPlane"
-              type="checkbox"
-              @change="updateViewOption('showTangentPlane', $event.target.checked)"
-            />
-          </label>
-          <label>
-            <span>梯度箭头</span>
-            <input
-              :checked="viewOptions.showGradient"
-              type="checkbox"
-              @change="updateViewOption('showGradient', $event.target.checked)"
-            />
-          </label>
-          <label>
-            <span>方向截线</span>
-            <input
-              :checked="viewOptions.showDirectionCurve"
-              type="checkbox"
-              @change="updateViewOption('showDirectionCurve', $event.target.checked)"
-            />
-          </label>
-          <label>
-            <span>坐标标签</span>
-            <input
-              :checked="viewOptions.showAxisLabels"
-              type="checkbox"
-              @change="updateViewOption('showAxisLabels', $event.target.checked)"
-            />
-          </label>
-        </div>
-
-        <div class="settings-grid">
-          <label>
-            <span>范围</span>
-            <input
-              :value="viewSettings.range"
-              type="number"
-              min="2"
-              max="10"
-              step="0.5"
-              @input="updateViewSetting('range', $event.target.value)"
-            />
-          </label>
-          <label>
-            <span>采样</span>
-            <input
-              :value="viewSettings.segments"
-              type="number"
-              min="24"
-              max="140"
-              step="4"
-              @input="updateViewSetting('segments', $event.target.value)"
-            />
-          </label>
-          <label>
-            <span>|z|≤</span>
-            <input
-              :value="viewSettings.zLimit"
-              type="number"
-              min="2"
-              max="30"
-              step="1"
-              @input="updateViewSetting('zLimit', $event.target.value)"
-            />
-          </label>
-        </div>
-      </section>
     </div>
 
-    <footer class="panel-actions">
-      <button class="action-button" type="button" @click="$emit('toggle-theme')">
-        <span>{{ theme === 'dark' ? '☀' : '◐' }}</span>
-        {{ theme === 'dark' ? '亮色主题' : '暗色主题' }}
-      </button>
-      <button class="action-button" type="button" @click="$emit('toggle-presentation')">
-        <span>◈</span>
-        {{ presentationMode ? '完整模式' : '演示模式' }}
-      </button>
-    </footer>
   </aside>
 </template>
