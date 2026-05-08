@@ -41,7 +41,7 @@ npm run check
 
 本项目已配置 GitHub Pages 自动部署：
 
-- Vite `base` 已设置为 `/multivariable-func-visualizer/`，对应仓库地址 `https://github.com/achcyano/multivariable-func-visualizer`。
+- Vite `base` 已设置为 `/multivariable-func-visualizer/`，对应仓库地址 `https://github.com/Nanny0901/multivariable-func-visualizer`。
 - 自动部署 workflow 位于 `.github/workflows/deploy.yml`。
 - 推送到 `main` 分支后，GitHub Actions 会执行 `npm ci`、`npm run build`，并将 `dist/` 发布到 GitHub Pages。
 
@@ -55,7 +55,7 @@ npm run check
 部署完成后访问：
 
 ```text
-https://achcyano.github.io/multivariable-func-visualizer/
+https://nanny0901.github.io/multivariable-func-visualizer/
 ```
 
 ## 演示验证例子
