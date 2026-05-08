@@ -37,6 +37,27 @@ npm run check
 
 `npm run build` 会生成生产环境文件到 `dist/`，`npm run preview` 用于本地预览构建结果。`npm run check` 当前等价于生产构建，便于交付前快速验证。
 
+## GitHub Pages 部署
+
+本项目已配置 GitHub Pages 自动部署：
+
+- Vite `base` 已设置为 `/multivariable-func-visualizer/`，对应仓库地址 `https://github.com/achcyano/multivariable-func-visualizer`。
+- 自动部署 workflow 位于 `.github/workflows/deploy.yml`。
+- 推送到 `main` 分支后，GitHub Actions 会执行 `npm ci`、`npm run build`，并将 `dist/` 发布到 GitHub Pages。
+
+首次启用时，需要在 GitHub 仓库页面完成一次设置：
+
+1. 打开仓库 `Settings`。
+2. 进入 `Pages`。
+3. 在 `Build and deployment` 中将 `Source` 设为 `GitHub Actions`。
+4. 推送 `main` 分支后，等待 `Actions` 页面中的 `Deploy to GitHub Pages` 工作流完成。
+
+部署完成后访问：
+
+```text
+https://achcyano.github.io/multivariable-func-visualizer/
+```
+
 ## 演示验证例子
 
 选择预设函数“抛物面”：
